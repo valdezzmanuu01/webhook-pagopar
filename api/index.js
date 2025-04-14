@@ -1,39 +1,44 @@
 export default async function handler(request, response) {
-  // Permitir CORS
-  response.setHeader("Access-Control-Allow-Origin", "*");
-  response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-  // Manejar preflight (OPTIONS)
-  if (request.method === "OPTIONS") {
-    return response.status(200).end();
-  }
+  console.log("✅ Webhook recibido");
 
   if (request.method !== "POST") {
+    console.warn("❌ Método no permitido:", request.method);
     return response.status(405).send("Método no permitido");
   }
 
-  let body = "";
+  const body = request.body;
+  const userId = body?.external_reference;
 
-  try {
-    for await (const chunk of request) {
-      body += chunk;
-    }
-
-    const parsedBody = JSON.parse(body);
-    console.log("✅ Webhook recibido:", parsedBody);
-
-    return response.status(200).send("Webhook recibido correctamente");
-  } catch (error) {
-    console.error("❌ Error al procesar el webhook:");
-    console.error("Mensaje:", error.message);
-    console.error("Stack:", error.stack);
-    console.error("Completo:", error);
-
-    return response.status(500).json({
-      error: true,
-      message: error.message || "Error desconocido",
-      stack: error.stack || "Sin stack disponible"
-    });
+  if (!userId) {
+    console.error("❌ Falta external_reference en el cuerpo");
+    return response.status(400).send("Falta external_reference");
   }
+
+  // Configuración Supabase
+  const SUPABASE_URL = "https://jicgsahphnlsbuuuajem.supabase.co";
+  const SUPABASE_KEY =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppY2dzYWhwaG5sc2J1dXVhamVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMzc3MTIsImV4cCI6MjA1ODYxMzcxMn0.VeixxYOrv1kjs13GpnsTikQEDiLBvzRA4xc26momIBE";
+
+  const now = new Date();
+  const proExpira = new Date(now.getTime() + 2 * 60 * 1000); // 2 minutos desde ahora
+
+  const result = await fetch(`${SUPABASE_URL}/rest/v1/perfiles?user_id=eq.${userId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      Prefer: "return=minimal"
+    },
+    body: JSON.stringify({ pro_expira: proExpira.toISOString() })
+  });
+
+  if (!result.ok) {
+    const errorText = await result.text();
+    console.error("❌ Error al actualizar Supabase:", errorText);
+    return response.status(500).send("Error al actualizar Supabase");
+  }
+
+  console.log("✅ Usuario actualizado correctamente:", userId);
+  return response.status(200).send("Actualización completada");
 }
