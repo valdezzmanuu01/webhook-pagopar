@@ -3,9 +3,15 @@ export default async function handler(request, response) {
     return response.status(405).send("Método no permitido");
   }
 
+  let body = "";
+
   try {
-    const body = await request.json();
-    console.log("✅ Webhook recibido:", body);
+    for await (const chunk of request) {
+      body += chunk;
+    }
+
+    const parsedBody = JSON.parse(body);
+    console.log("✅ Webhook recibido:", parsedBody);
 
     return response.status(200).send("Webhook recibido correctamente");
   } catch (error) {
