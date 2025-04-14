@@ -7,10 +7,17 @@ export default async function handler(request, response) {
     const body = await request.json();
     console.log("✅ Webhook recibido:", body);
 
-    // Enviar una respuesta exitosa
     return response.status(200).send("Webhook recibido correctamente");
   } catch (error) {
-    console.error("❌ Error al procesar el webhook:", error);
-    return response.status(500).send("Error interno del servidor");
+    console.error("❌ Error al procesar el webhook:");
+    console.error("Mensaje:", error.message);
+    console.error("Stack:", error.stack);
+    console.error("Completo:", error);
+
+    return response.status(500).json({
+      error: true,
+      message: error.message || "Error desconocido",
+      stack: error.stack || "Sin stack disponible"
+    });
   }
 }
