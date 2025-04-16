@@ -18,7 +18,9 @@ export default async function handler(req, res) {
   console.log("🟢 [Webhook] Petición recibida correctamente en Vercel.");
 
   const SUPABASE_URL = "https://jicgsahphnlsbuuuajem.supabase.co";
-  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppY2dzYWhwaG5sc2J1dXVhamVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMzc3MTIsImV4cCI6MjA1ODYxMzcxMn0.VeixxYOrv1kjs13GpnsTikQEDiLBvzRA4xc26momIBE";
+  const SUPABASE_KEY =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppY2dzYWhwaG5sc2J1dXVhamVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMzc3MTIsImV4cCI6MjA1ODYxMzcxMn0.VeixxYOrv1kjs13GpnsTikQEDiLBvzRA4xc26momIBE";
+
   const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
   try {
@@ -37,7 +39,7 @@ export default async function handler(req, res) {
 
     if (!external_reference || status !== "pagado") {
       console.warn("🔴 [Advertencia] Datos incompletos o inválidos.");
-      return res.status(200).json(true);
+      return res.status(200).json(true); // Conexión válida, datos inválidos
     }
 
     const fechaPago = new Date();
@@ -66,7 +68,9 @@ export default async function handler(req, res) {
     console.log("🟢 Columna pro_expira actual:", usuario.pro_expira);
 
     const nuevaFecha = new Date(Date.now() + 2 * 60 * 1000).toISOString();
-    const nuevaFechaOffset = new Date(new Date(nuevaFecha).getTime() - 3 * 60 * 60 * 1000);
+    const nuevaFechaOffset = new Date(
+      new Date(nuevaFecha).getTime() - 3 * 60 * 60 * 1000
+    );
     const nuevaFechaLegible = nuevaFechaOffset.toLocaleString("es-ES", {
       day: "2-digit",
       month: "2-digit",
@@ -90,19 +94,19 @@ export default async function handler(req, res) {
     console.log("✅ Supabase actualizado correctamente");
     console.log("📅 Fecha PRO nueva:", nuevaFechaLegible);
 
-    // Enviar mensaje a Ably SIN await ni promesa
+    // Publicar en Ably (sin esperar respuesta)
     const ably = new Ably.Rest("AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
     const canal = ably.channels.get("canal-pagos");
 
     canal.publish("pago-confirmado", { id: external_reference }, (err) => {
       if (err) {
-        console.error("❌ Error al enviar mensaje a Ably:", err);
-      } else {
-        console.log("📡 Mensaje enviado correctamente a Ably.");
+        console.error("❌ Error al publicar en Ably:", err);
+        return;
       }
+      console.log("📡 Mensaje enviado correctamente a Ably.");
     });
 
-    return res.status(200).json(true);
+    return res.status(200).json(true); // Bubble solo necesita saber si conectó bien
 
   } catch (error) {
     console.error("❌ Error crítico:", error);
