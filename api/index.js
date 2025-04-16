@@ -38,7 +38,7 @@ export default async function handler(req, res) {
 
     if (!external_reference || status !== "pagado") {
       console.warn("🔴 [Advertencia] Datos incompletos o inválidos.");
-      return res.status(200).json(true); // Conexión válida, datos inválidos
+      return res.status(200).json(true);
     }
 
     const fechaPago = new Date();
@@ -104,7 +104,7 @@ export default async function handler(req, res) {
 
     console.log("📡 Mensaje enviado correctamente a Ably.");
 
-    return res.status(200).json(true); // Bubble solo necesita saber si conectó bien
+    return res.status(200).json(true);
 
   } catch (error) {
     console.error("❌ Error crítico:", error);
