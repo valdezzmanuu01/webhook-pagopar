@@ -1,29 +1,35 @@
 export default async function handler(req, res) {
-  // Bloque CORS – NO TOCAR
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.status(200).end();
-    return;
+  console.log("🟡 [Webhook] Botón 'Simular Pago' fue presionado desde Bubble.");
+
+  if (req.method !== "POST") {
+    console.log("🔴 [Advertencia] Método no permitido:", req.method);
+    return res.status(405).json({ error: "Método no permitido" });
   }
 
-  // Validaciones de consola
-  console.log('🟡 [Webhook] Botón "Simular Pago" fue presionado desde Bubble.');
-  console.log('🟢 [Webhook] Petición recibida correctamente en Vercel.');
+  console.log("🟢 [Webhook] Petición recibida correctamente en Vercel.");
 
-  try {
-    const { body } = req;
-    const { id, monto, cliente } = body || {};
+  let body = req.body;
 
-    if (!id || !monto || !cliente) {
-      console.log('🔴 [Advertencia] El body llegó incompleto:', body);
-    } else {
-      console.log('🟢 [Datos recibidos]', { id, monto, cliente });
+  // Si el body está vacío y viene como texto, intentamos convertirlo
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch (e) {
+      console.log("🔴 [Advertencia] No se pudo parsear el body como JSON.");
+      return res.status(400).json({ error: "Body inválido" });
     }
-  } catch (e) {
-    console.log('🔴 [Error] No se pudo analizar el body de la petición.', e);
   }
 
-  // Aquí continúa tu lógica normal, sin modificar lo que ya funcionaba antes.
+  const { external_reference, status } = body;
+
+  if (!external_reference || !status) {
+    console.log("🔴 [Advertencia] El body llegó incompleto:", body);
+    return res.status(200).json({ message: "Faltan datos, pero se recibió la petición." });
+  }
+
+  console.log("🟢 [Éxito] Datos completos recibidos:");
+  console.log("🧾 ID de referencia:", external_reference);
+  console.log("💰 Estado del pago:", status);
+
+  res.status(200).json({ message: "Petición procesada correctamente." });
 }
