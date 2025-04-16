@@ -96,3 +96,4 @@ export default async function handler(request, response) {
     return response.status(500).send("Error interno");
   }
 }
+ 
