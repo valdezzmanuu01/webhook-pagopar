@@ -80,7 +80,7 @@ export default async function handler(request, response) {
     console.log("🗓️ Fecha PRO nueva:", nuevaFechaLegible);
 
     // Publicar mensaje en Ably
-    const ably = new Ably.Realtime("AvTVYAj46ZZg:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
+    const ably = new Ably.Realtime("AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
 
     await new Promise((resolve, reject) => {
       ably.connection.once("connected", () => {
