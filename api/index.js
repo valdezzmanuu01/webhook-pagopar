@@ -13,7 +13,7 @@ export default async function handler(req, res) {
 
   if (req.method !== "POST") {
     console.log("🔴 [Error] Método no permitido:", req.method);
-    return res.status(405).json({ error: "Método no permitido" });
+    return; // No responde nada a Bubble
   }
 
   console.log("🟢 [Webhook] Petición recibida correctamente en Vercel.");
@@ -23,19 +23,20 @@ export default async function handler(req, res) {
     body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
   } catch (e) {
     console.log("🔴 [Error] No se pudo parsear el body:", req.body);
-    return res.status(200).json({ recibido: false });
+    return; // No se devuelve nada a Bubble
   }
 
   const { external_reference, status } = body || {};
 
   if (!external_reference || !status) {
     console.log("🔴 [Advertencia] El body llegó incompleto:", body);
-    return res.status(200).json({ recibido: false });
+    return; // No se devuelve nada a Bubble
   }
 
   console.log("🟢 [Éxito] Datos completos recibidos:");
   console.log("📄 ID de referencia:", external_reference);
   console.log("💰 Estado del pago:", status);
 
-  res.status(200).json({ recibido: true });
+  // Solo aquí respondemos a Bubble
+  res.status(200).json(true);
 }
