@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import Ably from "ably/promises";
+import Ably from "ably";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
