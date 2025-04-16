@@ -82,7 +82,7 @@ export default async function handler(request, response) {
         if (err) {
           console.error("❌ Error crítico: Fallo al enviar el mensaje a Ably:", err.message);
         } else {
-          console.log("📨 Mensaje enviado correctamente a Ably.");
+          console.log("📢 [Ably] Mensaje de pago enviado correctamente al canal.");
         }
       });
     } catch (ablyError) {
