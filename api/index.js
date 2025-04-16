@@ -88,25 +88,26 @@ export default async function handler(req, res) {
       .eq("user_id", external_reference);
 
     if (updateError) {
-      throw new Error(`❌ Error al actualizar Supabase: ${updateError.message}`);
+      throw new Error(
+        `❌ Error al actualizar Supabase: ${updateError.message}`
+      );
     }
 
     console.log("✅ Supabase actualizado correctamente");
     console.log("📅 Fecha PRO nueva:", nuevaFechaLegible);
 
-    // Publicar en Ably (sin esperar respuesta)
+    // Publicar en Ably
     const ably = new Ably.Rest("AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
     const canal = ably.channels.get("canal-pagos");
 
     canal.publish("pago-confirmado", { id: external_reference }, (err) => {
       if (err) {
         console.error("❌ Error al publicar en Ably:", err);
-        return;
       }
-      console.log("📡 Mensaje enviado correctamente a Ably.");
+      // No mostramos mensaje de éxito porque Ably no responde cuando es exitoso.
     });
 
-    return res.status(200).json(true); // Bubble solo necesita saber si conectó bien
+    return res.status(200).json(true); // Confirmación a Bubble
 
   } catch (error) {
     console.error("❌ Error crítico:", error);
