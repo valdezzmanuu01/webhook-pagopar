@@ -1,7 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
+import Ably from "ably/promises";
+
+// Inicialización de Supabase
+const supabase = createClient(
+  "https://jicgsahphnlsbuuuajem.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+);
+
+// Inicialización de Ably
+const ably = new Ably.Rest("AvTVYAj46ZZg:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
 
 export default async function handler(req, res) {
-  // CORS
+  // Configuración CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -11,11 +21,6 @@ export default async function handler(req, res) {
 
   console.log("🟡 [Webhook] Botón 'Simular Pago' fue presionado desde Bubble.");
   console.log("🟢 [Webhook] Petición recibida correctamente en Vercel.");
-
-  const SUPABASE_URL = "https://jicgsahphnlsbuuuajem.supabase.co";
-  const SUPABASE_KEY =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppY2dzYWhwaG5sc2J1dXVhamVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMzc3MTIsImV4cCI6MjA1ODYxMzcxMn0.VeixxYOrv1kjs13GpnsTikQEDiLBvzRA4xc26momIBE";
-  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
   try {
     const body = await new Promise((resolve, reject) => {
@@ -33,16 +38,22 @@ export default async function handler(req, res) {
 
     if (!external_reference || status !== "pagado") {
       console.log("🔴 [Advertencia] El body llegó incompleto:", body);
-      return res.status(200).json(true); // igual responde true para Bubble
+      return res.status(200).json(true); // Bubble solo quiere saber si se conectó
     }
 
-    const fechaPago = new Date();
-    const fechaPagoLegible = new Date(fechaPago.getTime() - 3 * 60 * 60 * 1000).toLocaleString(
-      "es-ES",
-      { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }
-    );
-    console.log("⏰ Fecha del pago:", fechaPagoLegible);
+    // Fecha del pago
+    const fechaPago = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const fechaPagoLegible = fechaPago.toLocaleString("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    console.log("⏱️ Fecha del pago:", fechaPagoLegible);
 
+    // Buscar usuario
     const { data: usuario, error: userError } = await supabase
       .from("perfiles")
       .select("pro_expira")
@@ -57,47 +68,47 @@ export default async function handler(req, res) {
     console.log("✅ Usuario encontrado");
     console.log("🟢 Columna pro_expira actual:", usuario.pro_expira);
 
-    const nuevaFecha = new Date(Date.now() + 2 * 60 * 1000).toISOString();
-    const nuevaFechaLegible = new Date(new Date(nuevaFecha).getTime() - 3 * 60 * 60 * 1000).toLocaleString(
-      "es-ES",
-      { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }
-    );
-    console.log("🕓 Nueva fecha a guardar:", nuevaFechaLegible);
+    // Calcular nueva fecha PRO
+    const nuevaFecha = new Date(Date.now() + 2 * 60 * 1000);
+    const nuevaFechaOffset = new Date(nuevaFecha.getTime() - 3 * 60 * 60 * 1000);
+    const nuevaFechaLegible = nuevaFechaOffset.toLocaleString("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
 
+    console.log("⏱️ Nueva fecha a guardar:", nuevaFechaLegible);
+
+    // Actualizar en Supabase
     const { error: updateError } = await supabase
       .from("perfiles")
-      .update({ pro_expira: nuevaFecha })
+      .update({ pro_expira: nuevaFecha.toISOString() })
       .eq("user_id", external_reference);
 
     if (updateError) {
-      console.log("❌ Error al actualizar Supabase:", updateError.message);
+      console.error("❌ Error al actualizar Supabase:", updateError.message);
       return res.status(200).json(true);
     }
 
     console.log("✅ Supabase actualizado correctamente");
-    console.log("🗓️ Fecha PRO nueva:", nuevaFechaLegible);
+    console.log("📆 Fecha PRO nueva:", nuevaFechaLegible);
 
-    // Enviar mensaje a Ably
+    // Publicar en Ably
     try {
-      await fetch("https://rest.ably.io/channels/general/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Basic " + btoa("AvTVYAj46ZZg:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw"),
-        },
-        body: JSON.stringify({
-          name: "pro-update",
-          data: { id: external_reference },
-        }),
+      await ably.channels.get("canal-unico").publish("nuevo-pago", {
+        id: external_reference,
       });
-      console.log("📡 Mensaje enviado correctamente a Ably.");
+      console.log("📤 Mensaje enviado correctamente a Ably.");
     } catch (ablyError) {
-      console.error("❌ Error al enviar mensaje a Ably:", ablyError.message);
+      console.error("❌ Error al enviar a Ably:", ablyError.message);
     }
 
-    return res.status(200).json(true);
-  } catch (e) {
-    console.log("❌ Error inesperado:", e);
-    return res.status(200).json(true);
+    return res.status(200).json(true); // Siempre retornar true a Bubble
+  } catch (error) {
+    console.error("❌ Error inesperado:", error.message);
+    return res.status(200).json(true); // Bubble solo necesita confirmar conexión
   }
 }
