@@ -19,7 +19,6 @@ export default async function handler(req, res) {
 
   const SUPABASE_URL = "https://jicgsahphnlsbuuuajem.supabase.co";
   const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppY2dzYWhwaG5sc2J1dXVhamVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMzc3MTIsImV4cCI6MjA1ODYxMzcxMn0.VeixxYOrv1kjs13GpnsTikQEDiLBvzRA4xc26momIBE";
-
   const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
   try {
@@ -38,7 +37,7 @@ export default async function handler(req, res) {
 
     if (!external_reference || status !== "pagado") {
       console.warn("🔴 [Advertencia] Datos incompletos o inválidos.");
-      return res.status(200).json(true); // Conexión válida, datos inválidos
+      return res.status(200).json(true);
     }
 
     const fechaPago = new Date();
@@ -91,19 +90,19 @@ export default async function handler(req, res) {
     console.log("✅ Supabase actualizado correctamente");
     console.log("📅 Fecha PRO nueva:", nuevaFechaLegible);
 
-    // Publicar en Ably (con mensaje de éxito dentro del callback)
+    // Enviar mensaje a Ably SIN await ni promesa
     const ably = new Ably.Rest("AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
     const canal = ably.channels.get("canal-pagos");
 
-    await new Promise((resolve, reject) => {
-      canal.publish("pago-confirmado", { id: external_reference }, (err) => {
-        if (err) return reject(err);
+    canal.publish("pago-confirmado", { id: external_reference }, (err) => {
+      if (err) {
+        console.error("❌ Error al enviar mensaje a Ably:", err);
+      } else {
         console.log("📡 Mensaje enviado correctamente a Ably.");
-        return resolve();
-      });
+      }
     });
 
-    return res.status(200).json(true); // Bubble solo necesita saber si conectó bien
+    return res.status(200).json(true);
 
   } catch (error) {
     console.error("❌ Error crítico:", error);
