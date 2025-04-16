@@ -15,37 +15,45 @@ export default async function handler(req, res) {
   }
 
   const SUPABASE_URL = "https://jicgsahphnlsbuuuajem.supabase.co";
-  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppY2dzYWhwaG5sc2J1dXVhamVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMzc3MTIsImV4cCI6MjA1ODYxMzcxMn0.VeixxYOrv1kjs13GpnsTikQEDiLBvzRA4xc26momIBE";
+  const SUPABASE_KEY =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppY2dzYWhwaG5sc2J1dXVhamVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMzc3MTIsImV4cCI6MjA1ODYxMzcxMn0.VeixxYOrv1kjs13GpnsTikQEDiLBvzRA4xc26momIBE";
+
   const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
   try {
-    const rawBody = await new Promise((resolve, reject) => {
-      let data = "";
-      req.on("data", chunk => data += chunk);
-      req.on("end", () => resolve(JSON.parse(data)));
+    console.log("🟡 [Webhook] Botón 'Simular Pago' fue presionado desde Bubble.");
+    console.log("🟢 [Webhook] Petición recibida correctamente en Vercel.");
+
+    const body = await new Promise((resolve, reject) => {
+      let raw = "";
+      req.on("data", (chunk) => (raw += chunk));
+      req.on("end", () => resolve(JSON.parse(raw)));
       req.on("error", reject);
     });
 
-    const { external_reference, status } = rawBody;
+    const { external_reference, status } = body;
 
-    console.log("🟡 [Webhook] Botón 'Simular Pago' fue presionado desde Bubble.");
-    console.log("🟢 [Webhook] Petición recibida correctamente en Vercel.");
     console.log("🟢 [Éxito] Datos completos recibidos:");
     console.log("📄 ID de referencia:", external_reference);
     console.log("💰 Estado del pago:", status);
 
     if (!external_reference || status !== "pagado") {
-      console.log("🔴 [Advertencia] El body llegó incompleto:", rawBody);
+      console.warn("🔴 [Advertencia] El body llegó incompleto:", body);
       return res.status(200).json(true);
     }
 
     const fechaPago = new Date();
-    const fechaOffset = new Date(fechaPago.getTime() - 3 * 60 * 60 * 1000);
-    const fechaLegible = fechaOffset.toLocaleString("es-ES", {
-      day: "2-digit", month: "2-digit", year: "numeric",
-      hour: "2-digit", minute: "2-digit", hour12: false
+    const fechaPagoOffset = new Date(fechaPago.getTime() - 3 * 60 * 60 * 1000);
+    const fechaPagoLegible = fechaPagoOffset.toLocaleString("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
     });
-    console.log("⏱️ Fecha del pago:", fechaLegible);
+
+    console.log("⏳ Fecha del pago:", fechaPagoLegible);
 
     const { data: usuario, error: userError } = await supabase
       .from("perfiles")
@@ -55,20 +63,24 @@ export default async function handler(req, res) {
 
     if (userError || !usuario) {
       console.error("❌ Usuario no encontrado en Supabase");
-      return res.status(500).json({ error: true, message: "Usuario no encontrado" });
+      return res.status(500).json({ error: true, message: userError?.message || "Usuario no encontrado" });
     }
 
     console.log("✅ Usuario encontrado");
     console.log("🟢 Columna pro_expira actual:", usuario.pro_expira);
 
     const nuevaFecha = new Date(Date.now() + 2 * 60 * 1000).toISOString();
-    const nuevaOffset = new Date(new Date(nuevaFecha).getTime() - 3 * 60 * 60 * 1000);
-    const nuevaLegible = nuevaOffset.toLocaleString("es-ES", {
-      day: "2-digit", month: "2-digit", year: "numeric",
-      hour: "2-digit", minute: "2-digit", hour12: false
+    const nuevaFechaOffset = new Date(new Date(nuevaFecha).getTime() - 3 * 60 * 60 * 1000);
+    const nuevaFechaLegible = nuevaFechaOffset.toLocaleString("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
     });
 
-    console.log("🕓 Nueva fecha a guardar:", nuevaLegible);
+    console.log("⏱️ Nueva fecha a guardar:", nuevaFechaLegible);
 
     const { error: updateError } = await supabase
       .from("perfiles")
@@ -81,32 +93,29 @@ export default async function handler(req, res) {
     }
 
     console.log("✅ Supabase actualizado correctamente");
-    console.log("🗓️ Fecha PRO nueva:", nuevaLegible);
+    console.log("📅 Fecha PRO nueva:", nuevaFechaLegible);
 
-    // Enviar mensaje a Ably
+    // Publicar en Ably
+    const ably = new Ably.Realtime("AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
+    const canal = ably.channels.get("pagos");
+
     try {
-      const ably = new Ably.Realtime({ key: "AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw" });
-      const canal = ably.channels.get("canal-global");
-
       await new Promise((resolve, reject) => {
-        canal.publish("pago-confirmado", { id: external_reference }, (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
+        canal.publish("nuevo-pago", { user_id: external_reference }, (err) => {
+          if (err) reject(err);
+          else resolve();
         });
       });
 
-      console.log("📢 Mensaje enviado correctamente a Ably.");
-    } catch (ablyError) {
-      console.error("❌ Error crítico con Ably:", ablyError);
-      return res.status(500).json({ error: true, message: "Error al publicar en Ably" });
+      console.log("📡 Mensaje enviado correctamente a Ably.");
+    } catch (err) {
+      console.error("❌ Error crítico al enviar mensaje a Ably:", err);
+      return res.status(500).json({ error: true, message: err.message });
     }
 
     return res.status(200).json(true);
   } catch (error) {
     console.error("❌ Error inesperado:", error);
-    return res.status(500).json({ error: true, message: error.message || "Error desconocido" });
+    return res.status(500).json({ error: true, message: error.message || "Error inesperado" });
   }
 }
