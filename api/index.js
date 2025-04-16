@@ -75,16 +75,23 @@ export default async function handler(request, response) {
     console.log("✅ Supabase actualizado correctamente");
     console.log("🗓️ Fecha PRO nueva:", nuevaFechaLegible);
 
+    // Ably: Esperar publicación
     try {
       const ably = new Ably.Realtime({ key: "AvTVYAj46ZZg:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw" });
       const channel = ably.channels.get("pagos");
-      channel.publish("pago-exitoso", { user_id: external_reference }, (err) => {
-        if (err) {
-          console.error("❌ Error crítico: Fallo al enviar el mensaje a Ably:", err.message);
-        } else {
-          console.log("📢 [Ably] Mensaje de pago enviado correctamente al canal.");
-        }
+
+      await new Promise((resolve, reject) => {
+        channel.publish("pago-exitoso", { user_id: external_reference }, (err) => {
+          if (err) {
+            console.error("❌ Error crítico: Fallo al enviar el mensaje a Ably:", err.message);
+            reject(err);
+          } else {
+            console.log("📢 [Ably] Mensaje de pago enviado correctamente al canal.");
+            resolve();
+          }
+        });
       });
+
     } catch (ablyError) {
       console.error("❌ Error crítico al inicializar Ably:", ablyError.message);
     }
