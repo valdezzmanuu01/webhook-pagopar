@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import Ably from "ably/promises";
+import Ably from "ably";
 
 // Inicialización de Supabase
 const supabase = createClient(
