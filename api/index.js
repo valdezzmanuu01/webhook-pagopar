@@ -77,7 +77,7 @@ export default async function handler(request, response) {
 
     // Ably: Esperar publicación
     try {
-      const ably = new Ably.Realtime({ key: "AvTVYAj46ZZg:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw" });
+      const ably = new Ably.Realtime({ key: "AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw" });
       const channel = ably.channels.get("pagos");
 
       await new Promise((resolve, reject) => {
