@@ -73,7 +73,7 @@ export default async function handler(request, response) {
     console.log("✅ Supabase actualizado correctamente.");
 
     // Publicación directa a Ably (forma que funcionaba)
-    const ably = new Ably.Realtime("AvTVYAj46ZZg:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
+    const ably = new Ably.Realtime("AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
     const canal = ably.channels.get("pagos");
     canal.publish("pago-exitoso", { user_id: external_reference });
 
