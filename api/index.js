@@ -38,7 +38,7 @@ export default async function handler(req, res) {
 
     if (!external_reference || status !== "pagado") {
       console.warn("🔴 [Advertencia] Datos incompletos o inválidos.");
-      return res.status(200).json(true);
+      return res.status(200).json(true); // Conexión válida, datos inválidos
     }
 
     const fechaPago = new Date();
@@ -91,20 +91,19 @@ export default async function handler(req, res) {
     console.log("✅ Supabase actualizado correctamente");
     console.log("📅 Fecha PRO nueva:", nuevaFechaLegible);
 
-    // Publicar en Ably
+    // Publicar en Ably (con mensaje de éxito dentro del callback)
     const ably = new Ably.Rest("AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
     const canal = ably.channels.get("canal-pagos");
 
     await new Promise((resolve, reject) => {
       canal.publish("pago-confirmado", { id: external_reference }, (err) => {
         if (err) return reject(err);
+        console.log("📡 Mensaje enviado correctamente a Ably.");
         return resolve();
       });
     });
 
-    console.log("📡 Mensaje enviado correctamente a Ably.");
-
-    return res.status(200).json(true);
+    return res.status(200).json(true); // Bubble solo necesita saber si conectó bien
 
   } catch (error) {
     console.error("❌ Error crítico:", error);
