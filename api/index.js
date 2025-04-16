@@ -6,13 +6,21 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).send("Método no permitido");
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
 
-  const supabase = createClient(
-    "https://jicgsahphnlsbuuuajem.supabase.co",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppY2dzYWhwaG5sc2J1dXVhamVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMzc3MTIsImV4cCI6MjA1ODYxMzcxMn0.VeixxYOrv1kjs13GpnsTikQEDiLBvzRA4xc26momIBE"
-  );
+  if (req.method !== "POST") {
+    return res.status(405).send("Método no permitido");
+  }
+
+  console.log("🟡 [Webhook] Botón 'Simular Pago' fue presionado desde Bubble.");
+  console.log("🟢 [Webhook] Petición recibida correctamente en Vercel.");
+
+  const SUPABASE_URL = "https://jicgsahphnlsbuuuajem.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppY2dzYWhwaG5sc2J1dXVhamVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMzc3MTIsImV4cCI6MjA1ODYxMzcxMn0.VeixxYOrv1kjs13GpnsTikQEDiLBvzRA4xc26momIBE";
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
   try {
     const body = await new Promise((resolve, reject) => {
@@ -24,17 +32,14 @@ export default async function handler(req, res) {
 
     const { external_reference, status } = body;
 
-    console.log("🟡 [Webhook] Botón 'Simular Pago' fue presionado desde Bubble.");
-    console.log("🟢 [Webhook] Petición recibida correctamente en Vercel.");
-
-    if (!external_reference || status !== "pagado") {
-      console.log("🔴 [Advertencia] El body llegó incompleto:", body);
-      return res.status(200).json(true);
-    }
-
-    console.log("🟢 [Éxito] Datos completos recibidos:");
+    console.log("✅ [Éxito] Datos completos recibidos:");
     console.log("📄 ID de referencia:", external_reference);
     console.log("💰 Estado del pago:", status);
+
+    if (!external_reference || status !== "pagado") {
+      console.warn("🔴 [Advertencia] Datos incompletos o inválidos.");
+      return res.status(200).json(true); // Conexión válida, datos inválidos
+    }
 
     const fechaPago = new Date();
     const fechaPagoOffset = new Date(fechaPago.getTime() - 3 * 60 * 60 * 1000);
@@ -46,7 +51,7 @@ export default async function handler(req, res) {
       minute: "2-digit",
       hour12: false,
     });
-    console.log("🕰️ Fecha del pago:", fechaPagoLegible);
+    console.log("🕓 Fecha del pago:", fechaPagoLegible);
 
     const { data: usuario, error: userError } = await supabase
       .from("perfiles")
@@ -55,7 +60,7 @@ export default async function handler(req, res) {
       .single();
 
     if (userError || !usuario) {
-      throw new Error("Usuario no encontrado en Supabase");
+      throw new Error("❌ Usuario no encontrado en Supabase");
     }
 
     console.log("✅ Usuario encontrado");
@@ -80,31 +85,29 @@ export default async function handler(req, res) {
       .eq("user_id", external_reference);
 
     if (updateError) {
-      throw new Error("Error al actualizar Supabase: " + updateError.message);
+      throw new Error(`❌ Error al actualizar Supabase: ${updateError.message}`);
     }
 
     console.log("✅ Supabase actualizado correctamente");
     console.log("📅 Fecha PRO nueva:", nuevaFechaLegible);
 
-    // Enviar a Ably
-    try {
-      const ably = new Ably.Realtime("AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
+    // Publicar en Ably
+    const ably = new Ably.Rest("AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
+    const canal = ably.channels.get("canal-pagos");
 
-      await new Promise((resolve, reject) => {
-        ably.channels.get("canal-unico").publish("pro-pagado", external_reference, (err) => {
-          if (err) return reject(err);
-          resolve();
-        });
+    await new Promise((resolve, reject) => {
+      canal.publish("pago-confirmado", { id: external_reference }, (err) => {
+        if (err) return reject(err);
+        return resolve();
       });
+    });
 
-      console.log("📡 Mensaje enviado correctamente a Ably.");
-    } catch (err) {
-      console.error("❌ Error crítico con Ably:", err);
-    }
+    console.log("📡 Mensaje enviado correctamente a Ably.");
 
-    return res.status(200).json(true);
-  } catch (err) {
-    console.error("❌ Error crítico:", err.message || err);
-    return res.status(500).send("Error en el servidor");
+    return res.status(200).json(true); // Bubble solo necesita saber si conectó bien
+
+  } catch (error) {
+    console.error("❌ Error crítico:", error);
+    return res.status(500).json({ error: true, message: error.message });
   }
 }
