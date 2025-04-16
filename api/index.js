@@ -6,24 +6,15 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).send("Método no permitido");
 
-  if (req.method !== "POST") {
-    return res.status(405).send("Método no permitido");
-  }
-
-  const SUPABASE_URL = "https://jicgsahphnlsbuuuajem.supabase.co";
-  const SUPABASE_KEY =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppY2dzYWhwaG5sc2J1dXVhamVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMzc3MTIsImV4cCI6MjA1ODYxMzcxMn0.VeixxYOrv1kjs13GpnsTikQEDiLBvzRA4xc26momIBE";
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  const supabase = createClient(
+    "https://jicgsahphnlsbuuuajem.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppY2dzYWhwaG5sc2J1dXVhamVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMzc3MTIsImV4cCI6MjA1ODYxMzcxMn0.VeixxYOrv1kjs13GpnsTikQEDiLBvzRA4xc26momIBE"
+  );
 
   try {
-    console.log("🟡 [Webhook] Botón 'Simular Pago' fue presionado desde Bubble.");
-    console.log("🟢 [Webhook] Petición recibida correctamente en Vercel.");
-
     const body = await new Promise((resolve, reject) => {
       let raw = "";
       req.on("data", (chunk) => (raw += chunk));
@@ -33,14 +24,17 @@ export default async function handler(req, res) {
 
     const { external_reference, status } = body;
 
+    console.log("🟡 [Webhook] Botón 'Simular Pago' fue presionado desde Bubble.");
+    console.log("🟢 [Webhook] Petición recibida correctamente en Vercel.");
+
+    if (!external_reference || status !== "pagado") {
+      console.log("🔴 [Advertencia] El body llegó incompleto:", body);
+      return res.status(200).json(true);
+    }
+
     console.log("🟢 [Éxito] Datos completos recibidos:");
     console.log("📄 ID de referencia:", external_reference);
     console.log("💰 Estado del pago:", status);
-
-    if (!external_reference || status !== "pagado") {
-      console.warn("🔴 [Advertencia] El body llegó incompleto:", body);
-      return res.status(200).json(true);
-    }
 
     const fechaPago = new Date();
     const fechaPagoOffset = new Date(fechaPago.getTime() - 3 * 60 * 60 * 1000);
@@ -52,8 +46,7 @@ export default async function handler(req, res) {
       minute: "2-digit",
       hour12: false,
     });
-
-    console.log("⏳ Fecha del pago:", fechaPagoLegible);
+    console.log("🕰️ Fecha del pago:", fechaPagoLegible);
 
     const { data: usuario, error: userError } = await supabase
       .from("perfiles")
@@ -62,8 +55,7 @@ export default async function handler(req, res) {
       .single();
 
     if (userError || !usuario) {
-      console.error("❌ Usuario no encontrado en Supabase");
-      return res.status(500).json({ error: true, message: userError?.message || "Usuario no encontrado" });
+      throw new Error("Usuario no encontrado en Supabase");
     }
 
     console.log("✅ Usuario encontrado");
@@ -88,34 +80,31 @@ export default async function handler(req, res) {
       .eq("user_id", external_reference);
 
     if (updateError) {
-      console.error("❌ Error al actualizar Supabase:", updateError.message);
-      return res.status(500).json({ error: true, message: updateError.message });
+      throw new Error("Error al actualizar Supabase: " + updateError.message);
     }
 
     console.log("✅ Supabase actualizado correctamente");
     console.log("📅 Fecha PRO nueva:", nuevaFechaLegible);
 
-    // Publicar en Ably
-    const ably = new Ably.Realtime("AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
-    const canal = ably.channels.get("pagos");
-
+    // Enviar a Ably
     try {
+      const ably = new Ably.Realtime("AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
+
       await new Promise((resolve, reject) => {
-        canal.publish("nuevo-pago", { user_id: external_reference }, (err) => {
-          if (err) reject(err);
-          else resolve();
+        ably.channels.get("canal-unico").publish("pro-pagado", external_reference, (err) => {
+          if (err) return reject(err);
+          resolve();
         });
       });
 
       console.log("📡 Mensaje enviado correctamente a Ably.");
     } catch (err) {
-      console.error("❌ Error crítico al enviar mensaje a Ably:", err);
-      return res.status(500).json({ error: true, message: err.message });
+      console.error("❌ Error crítico con Ably:", err);
     }
 
     return res.status(200).json(true);
-  } catch (error) {
-    console.error("❌ Error inesperado:", error);
-    return res.status(500).json({ error: true, message: error.message || "Error inesperado" });
+  } catch (err) {
+    console.error("❌ Error crítico:", err.message || err);
+    return res.status(500).send("Error en el servidor");
   }
 }
