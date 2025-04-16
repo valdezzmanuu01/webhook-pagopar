@@ -76,7 +76,7 @@ export default async function handler(request, response) {
     console.log("🗓️ Fecha PRO nueva:", nuevaFechaLegible);
 
     try {
-      const ably = new Ably.Realtime({ key: "AvTVYAj46ZZg:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw" });
+      const ably = new Ably.Realtime({ key: "AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw" });
       const channel = ably.channels.get("pagos");
       channel.publish("pago-exitoso", { user_id: external_reference }, (err) => {
         if (err) {
