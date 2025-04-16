@@ -1,25 +1,28 @@
-// ... bloque CORS (no se toca)
-
-if (req.method === 'POST') {
-  try {
-    console.log('🟢 [Webhook] Se recibió una solicitud desde Bubble');
-
-    const contentType = req.headers['content-type'];
-    if (contentType !== 'application/json') {
-      console.log('🔴 [Alerta] Content-Type no es JSON:', contentType);
-    } else {
-      console.log('🟢 [OK] Content-Type es JSON');
-    }
-
-    if (!req.body || Object.keys(req.body).length === 0) {
-      console.log('🔴 [Error] El cuerpo de la solicitud está vacío');
-    } else {
-      console.log('🟢 [Datos recibidos]', req.body);
-    }
-
-  } catch (error) {
-    console.log('🔴 [Excepción capturada]', error.message);
-  }
-
-  // NO agregamos return ni res.end acá para no interrumpir la estructura original
+// CORS – NO TOCAR
+if (req.method === 'OPTIONS') {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.status(200).end();
+  return;
 }
+
+// VALIDACIONES EN CONSOLA – NO INTERRUMPEN LA CONEXIÓN
+console.log('🟡 [Webhook] Botón "Simular Pago" fue presionado desde Bubble.');
+console.log('🟢 [Webhook] Petición recibida correctamente en Vercel.');
+
+// Intento de extraer body y validar campos clave (si alguno falta, se notifica pero NO corta)
+try {
+  const { body } = req;
+  const { id, monto, cliente } = body || {};
+
+  if (!id || !monto || !cliente) {
+    console.log('🔴 [Advertencia] El body llegó incompleto:', body);
+  } else {
+    console.log('🟢 [Datos recibidos]', { id, monto, cliente });
+  }
+} catch (e) {
+  console.log('🔴 [Error] No se pudo analizar el body de la petición.', e);
+}
+
+// Aquí debajo continúa el código original que ya tenías funcionando
