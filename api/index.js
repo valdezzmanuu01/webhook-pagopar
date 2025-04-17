@@ -85,22 +85,18 @@ export default async function handler(request, response) {
   }
 }
 
+// Función encapsulada para publicar en Ably
 async function publicarEnAbly(userId) {
   try {
     const ably = new Ably.Realtime({ key: "AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw" });
     const channel = ably.channels.get("pagos");
-
-    await new Promise((resolve, reject) => {
-      channel.publish("pago-exitoso", { user_id: userId }, (err) => {
-        if (err) {
-          console.error("❌ Error crítico: Fallo al publicar en Ably:", err.message);
-          return reject(err);
-        }
-        console.log("✅ [ABLY] Publicación exitosa para ID:", userId);
-        return resolve();
-      });
+    channel.publish("pago-exitoso", { user_id: userId }, (err) => {
+      if (err) {
+        console.error("❌ Error crítico: Fallo al enviar el mensaje a Ably:", err.message);
+      } else {
+        console.log("📨 Mensaje enviado correctamente a Ably.");
+      }
     });
-
   } catch (error) {
     console.error("❌ Error al inicializar Ably:", error.message);
   }
