@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).send("Método no permitido");
 
   try {
-    const ably = new Ably.Rest("AvTVYAj46ZZg:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
+    const ably = new Ably.Rest("AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw");
     const canal = ably.channels.get("pagos");
 
     canal.publish("pago-exitoso", { mensaje: "Prueba directa desde webhook" });
