@@ -10,3 +10,4 @@ export default function handler(req, res) {
   console.log("✅ Webhook desplegado correctamente y ejecutándose.");
   return res.status(200).json({ message: "Webhook activo y funcionando" });
 }
+ 
