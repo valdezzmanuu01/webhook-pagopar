@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import Ably from "ably";
 
 export default async function handler(request, response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
@@ -75,33 +74,29 @@ export default async function handler(request, response) {
     console.log("✅ Supabase actualizado correctamente");
     console.log("🗓️ Fecha PRO nueva:", nuevaFechaLegible);
 
-    await publicarEnAbly(external_reference);
+    // Publicación en Ably por REST sin esperar confirmación
+    const ablyKey = "AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw";
+    const ablyResponse = await fetch("https://rest.ably.io/channels/pagos/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Basic ${Buffer.from(ablyKey).toString("base64")}`
+      },
+      body: JSON.stringify({
+        name: "pago-exitoso",
+        data: { user_id: external_reference }
+      })
+    });
+
+    if (!ablyResponse.ok) {
+      const detail = await ablyResponse.text();
+      console.error("❌ Error al publicar en Ably:", detail);
+    }
 
     return response.status(200).json(true);
 
   } catch (error) {
     console.error("❌ Error inesperado:", error.message);
     return response.status(500).send("Error interno");
-  }
-}
-
-// Función encapsulada para publicar en Ably
-async function publicarEnAbly(userId) {
-  try {
-    const ably = new Ably.Realtime({ key: "AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw" });
-    const channel = ably.channels.get("pagos");
-
-    await new Promise((resolve, reject) => {
-      channel.publish("pago-exitoso", { user_id: userId }, (err) => {
-        if (err) {
-          console.error("❌ Error crítico: Fallo al enviar el mensaje a Ably:", err.message);
-          return reject(err);
-        }
-        return resolve(); // No hay log de éxito
-      });
-    });
-
-  } catch (error) {
-    console.error("❌ Error al inicializar Ably:", error.message);
   }
 }
