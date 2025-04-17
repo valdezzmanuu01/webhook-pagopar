@@ -1,34 +1,103 @@
-export default async function handler(req, res) {
-  // Bloque CORS
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+import { createClient } from "@supabase/supabase-js";
+import Ably from "ably";
 
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).send("Método no permitido");
+export default async function handler(request, response) {
+  response.setHeader("Access-Control-Allow-Origin", "*");
+  response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (request.method === "OPTIONS") return response.status(200).end();
+  if (request.method !== "POST") return response.status(405).send("Método no permitido");
+
+  const SUPABASE_URL = "https://jicgsahphnlsbuuuajem.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppY2dzYWhwaG5sc2J1dXVhamVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMzc3MTIsImV4cCI6MjA1ODYxMzcxMn0.VeixxYOrv1kjs13GpnsTikQEDiLBvzRA4xc26momIBE";
+  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
   try {
-    const ablyKey = "AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw";
-
-    const result = await fetch("https://rest.ably.io/channels/pagos/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Basic ${Buffer.from(ablyKey).toString("base64")}`
-      },
-      body: JSON.stringify({
-        name: "pago-exitoso",
-        data: { mensaje: "Prueba desde REST directa" }
-      })
+    console.log("🟡 [Webhook] Botón 'Simular Pago' fue presionado desde Bubble.");
+    const rawBody = await new Promise((resolve, reject) => {
+      let raw = "";
+      request.on("data", chunk => (raw += chunk));
+      request.on("end", () => resolve(JSON.parse(raw)));
+      request.on("error", reject);
     });
 
-    if (!result.ok) {
-      const text = await result.text();
-      return res.status(500).json({ error: "No se pudo publicar en Ably", detalle: text });
+    const { external_reference, status } = rawBody;
+
+    console.log("🟢 [Webhook] Petición recibida correctamente en Vercel.");
+    console.log("🟢 [Éxito] Datos completos recibidos:");
+    console.log("📄 ID de referencia:", external_reference);
+    console.log("💰 Estado del pago:", status);
+
+    if (!external_reference || status !== "pagado") {
+      console.log("🔴 [Advertencia] El body llegó incompleto:", rawBody);
+      return response.status(200).json(true);
     }
 
-    return res.status(200).end();
+    const fechaPago = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const fechaPagoLegible = fechaPago.toLocaleString("es-ES", {
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit", hour12: false
+    });
+    console.log("⏰ Fecha del pago:", fechaPagoLegible);
+
+    const { data: usuario, error: userError } = await supabase
+      .from("perfiles")
+      .select("pro_expira")
+      .eq("user_id", external_reference)
+      .single();
+
+    if (userError || !usuario) {
+      console.error("❌ Usuario no encontrado en Supabase");
+      throw new Error("Usuario no encontrado o Supabase devolvió un error");
+    }
+
+    console.log("✅ Usuario encontrado");
+    console.log("🟢 Columna pro_expira actual:", usuario.pro_expira);
+
+    const nuevaFecha = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+    const nuevaFechaLegible = new Date(new Date(nuevaFecha).getTime() - 3 * 60 * 60 * 1000).toLocaleString("es-ES", {
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit", hour12: false
+    });
+    console.log("🕓 Nueva fecha a guardar:", nuevaFechaLegible);
+
+    const { error: updateError } = await supabase
+      .from("perfiles")
+      .update({ pro_expira: nuevaFecha })
+      .eq("user_id", external_reference);
+
+    if (updateError) {
+      console.error("❌ Error al actualizar Supabase:", updateError.message);
+      throw new Error(updateError.message);
+    }
+
+    console.log("✅ Supabase actualizado correctamente");
+    console.log("🗓️ Fecha PRO nueva:", nuevaFechaLegible);
+
+    await publicarEnAbly(external_reference);
+
+    return response.status(200).json(true);
+
   } catch (error) {
-    return res.status(500).json({ error: "Error crítico en el servidor", detalle: error.message });
+    console.error("❌ Error inesperado:", error.message);
+    return response.status(500).send("Error interno");
+  }
+}
+
+// Función encapsulada para publicar en Ably
+async function publicarEnAbly(userId) {
+  try {
+    const ably = new Ably.Realtime({ key: "AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw" });
+    const channel = ably.channels.get("pagos");
+    channel.publish("pago-exitoso", { user_id: userId }, (err) => {
+      if (err) {
+        console.error("❌ Error crítico: Fallo al enviar el mensaje a Ably:", err.message);
+      } else {
+        console.log("📨 Mensaje enviado correctamente a Ably.");
+      }
+    });
+  } catch (error) {
+    console.error("❌ Error al inicializar Ably:", error.message);
   }
 }
