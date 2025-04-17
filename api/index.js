@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).send("Método no permitido");
 
   try {
-    const ablyKey = "AvTVYA.j46ZZg:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw";
+    const ablyKey = "AvTVYA.j46Z2g:PVcJZs85qnOHEL_dnYaUPfemjGKmLVFAWZZYk9L61zw";
 
     const result = await fetch("https://rest.ably.io/channels/pagos/messages", {
       method: "POST",
